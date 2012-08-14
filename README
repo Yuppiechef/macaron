@@ -1,0 +1,13 @@
+# Macaron: 
+
+A way to declaratively describe your database model and get going without much fuss
+
+## Usage
+
+FIXME: write
+
+## License
+
+Copyright (C) 2012 Yuppiechef Online (Pty) Ltd.
+
+Distributed under the Eclipse Public License, the same as Clojure.
