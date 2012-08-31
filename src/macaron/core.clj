@@ -171,7 +171,8 @@
 		            (sql/as-identifier table-name)
 		            (specs-to-string col-specs)
 		            table-spec-str)]
-	       (if (> (count remaining-cols) 0)
+	       (when (> (count remaining-cols) 0)
+                 (info "Running queries:" query)
 	         (sql/do-commands query)
 	         )))
 	     
@@ -368,7 +369,8 @@
    :enum "ENUM"
    :email "varchar(255)"
    :ipaddress "varchar(32)"
-   :link "BIGINT"})
+   :link "BIGINT"
+   :boolean "tinyint(1)"})
 
 (def default-indextypes
   {:uuid :unique
