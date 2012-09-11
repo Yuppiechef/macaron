@@ -564,7 +564,7 @@
     (let [paramkeys (get-query-paramkeys query)
           paramquery (substitute-param-keys query paramkeys param-map)
           pmapping (partial param-value entkey querykey param-map query)]
-      (into [paramquery] (reduce pmapping {} paramkeys)))
+      (into [paramquery] (reduce pmapping [] paramkeys)))
     (throw (RuntimeException. (str "Query " entkey " " querykey " was not found."))))
     )
 
