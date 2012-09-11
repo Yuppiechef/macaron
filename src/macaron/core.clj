@@ -535,13 +535,26 @@
 
 (defn param-value
   "Get the value of a key on param map, or throw a runtime exception if not found. Fail-fast."
-  [entkey querykey param-map qry paramkey]
-  (if-let [result (param-map paramkey)] result
-          (throw (new RuntimeException
-                  (str paramkey " not passed for query on "
-                       entkey ", " querykey " with param map "
-                       param-map " on query: " qry))))
+  [entkey querykey param-map qry pmap paramkey]
+  (if-let [result (param-map paramkey)]
+    (if (coll? result)
+      (concat pmap result)
+      (conj pmap result))
+    (throw (new RuntimeException
+                (str paramkey " not passed for query on "
+                     entkey ", " querykey " with param map "
+                     param-map " on query: " qry))))
   )
+(defn substitute-param-keys
+  "Replace :param-keys with ?'s - If the param-value in question is a collection, it will create a ? for each entry."
+  [query paramkeys param-map]
+  (reduce
+   (fn [qry key]
+     (let [value (get param-map key "")]
+       (if (coll? value)
+         (.replaceAll qry (str key) (join-str-with "" "," (repeat (count value) "?") ""))
+         (.replaceAll qry (str key) "?"))))
+   query paramkeys))
 
 (defn get-named-query
   "Get a named query from an entity and return the SQL + parameters ready for use in sql/with-query-results."
@@ -549,9 +562,9 @@
   {:pre [(map? param-map)]}
   (if-let [query (-> (@entitydefs entkey) :queries querykey)]
     (let [paramkeys (get-query-paramkeys query)
-          paramquery (reduce (fn [qry key] (.replaceAll qry (str key) "?")) query paramkeys)
+          paramquery (substitute-param-keys query paramkeys param-map)
           pmapping (partial param-value entkey querykey param-map query)]
-      (into [paramquery] (map pmapping paramkeys)))
+      (into [paramquery] (reduce pmapping {} paramkeys)))
     (throw (RuntimeException. (str "Query " entkey " " querykey " was not found."))))
     )
 
