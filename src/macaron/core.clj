@@ -288,8 +288,14 @@
          `(with-namequery-result ~rs# (keyword ~~entname) ~querykey# ~param-map# ~@body#)
          )
        
+       (defn ~(symbol (str "list-" entname "-query"))
+         ~(str "Run a named query for the entity, " entname ", realize and return all its results. Note that this is slower and more memory intensive than using with-" entname "-result, so use carefully")
+         [querykey# param-map#]
+         (with-namequery-result rs# (keyword ~entname) querykey# param-map#
+           (doall rs#)))
        ))
   )
+
 
 
 (defn process-field [field]
@@ -538,13 +544,15 @@
   [entkey querykey param-map qry pmap paramkey]
   (if-let [result (param-map paramkey)]
     (if (coll? result)
-      (concat pmap result)
+      (if (not-empty result)
+        (apply conj pmap result))
       (conj pmap result))
     (throw (new RuntimeException
                 (str paramkey " not passed for query on "
                      entkey ", " querykey " with param map "
                      param-map " on query: " qry))))
   )
+
 (defn substitute-param-keys
   "Replace :param-keys with ?'s - If the param-value in question is a collection, it will create a ? for each entry."
   [query paramkeys param-map]
@@ -572,6 +580,7 @@
   "Wrap the building of the named query into a with-query-results - binds the result seq as rs, identical as with-query-results"
   [rs entname queryname param-map & body]
   `(let [sql-params# (get-named-query ~entname ~queryname ~param-map)]
+     (trace sql-params#)
      (sql/with-query-results ~rs sql-params#
        ~@body
        )))
