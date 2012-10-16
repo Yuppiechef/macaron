@@ -75,10 +75,14 @@
 
 (defn find-or-create [idcol table entity]
   {:pre (map? entity)}
-  (let [ent (find-by idcol table (entity idcol))]
-    (if (empty? ent)
-      (save-entity table entity)
-      ent)
+  (let [id (get entity idcol :not-found)
+        ]
+    (cond
+     (= :not-found id) (throw (RuntimeException. (str "Id column " idcol " not found on entity " entity)))
+     :else
+     (if-let [ent (find-by idcol table id)]
+       ent
+       (save-entity table entity))) 
     )
   )
 
@@ -155,7 +159,7 @@
 	       table-spec-str (or (and table-spec (str " " table-spec)) "")]
 	  ; Create the table with placeholder column (to remove after other columns are added.
 	  (if (not exists)
-	    (sql/do-commands (str "CREATE TABLE " table-name " (__placeholder__ int) ENGINE=innodb, CHARACTER SET=utf8, COLLATE=utf8_general_ci" table-spec-str)))
+	    (sql/do-commands (str "CREATE TABLE " table-name " (__placeholder__ int), ENGINE=innodb, CHARACTER SET=utf8, COLLATE=utf8_general_ci" table-spec-str)))
 	  
 	  (sql/with-query-results rs [(str "SHOW COLUMNS FROM " table-name)]
 	     (let [existing-columns (map #(:field %) rs)
