@@ -80,9 +80,10 @@
     (cond
      (= :not-found id) (throw (RuntimeException. (str "Id column " idcol " not found on entity " entity)))
      :else
-     (if-let [ent (find-by idcol table id)]
-       ent
-       (save-entity table entity))) 
+     (let [ent (find-by idcol table id)]
+       (if (empty? ent)
+         (save-entity table entity)
+         ent))) 
     )
   )
 
