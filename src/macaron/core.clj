@@ -160,7 +160,7 @@
 	       table-spec-str (or (and table-spec (str " " table-spec)) "")]
 	  ; Create the table with placeholder column (to remove after other columns are added.
 	  (if (not exists)
-	    (sql/do-commands (str "CREATE TABLE " table-name " (__placeholder__ int), ENGINE=innodb, CHARACTER SET=utf8, COLLATE=utf8_general_ci" table-spec-str)))
+	    (sql/do-commands (str "CREATE TABLE " table-name " (__placeholder__ int) ENGINE=innodb, CHARACTER SET=utf8, COLLATE=utf8_general_ci" table-spec-str)))
 	  
 	  (sql/with-query-results rs [(str "SHOW COLUMNS FROM " table-name)]
 	     (let [existing-columns (map #(:field %) rs)
