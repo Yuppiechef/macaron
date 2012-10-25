@@ -166,14 +166,8 @@
     (list) 
     specs))
 
-(defn add-enum-name
-  "Hack to add the enum's name to its spec in the front so the correct sql will be generated
-   Eg: [:gender ENUM('boy', 'girl')] converts to  [:gender :gender ENUM('boy', 'girl')]"
-  [all current]
-  (conj all (into (vector (first current)) current)))
-
 (defn get-existing-enum-types
-  "Find the current enum defn and return the current types"
+  "Find the current enum and return its current types"
   [name enums]
   (reduce
    (fn [all current]
@@ -184,14 +178,14 @@
    enums))
 
 (defn merge-types
+  "Strips out just the names of the enum types from a string with types, commas and spaces"
   [types]
   (reduce
    (fn [all f]
      (if-not (= (.trim f) ",")
        (conj all (str "'" (.trim f) "'"))
        all))
-   (hash-set)
-   types))
+   (hash-set) types))
 
 (defn parse-types
   "Meh function to strip out the types from the spec or column definition string. Skips first 6 letters and the last letter to remove enum( ) "
@@ -199,39 +193,41 @@
   (string/split (subs enum 6 (- (.length enum) 1)) #"\'"))
 
 (defn merge-enum-types
-  "Merged new and existing enum types together"
+  "Merged new and existing enum types together, eg: enum('boy','girl') and ENUM('male', 'female') returns enum('boy', 'girl', 'male', 'female')"
   [new existing]
-  ;enum('boy','girl') and ENUM('male', 'female')
   (let [types (set/union (merge-types (parse-types new)) (merge-types (parse-types existing)))
         fields (apply str (concat (interpose "," types)))]
-    (info "Enum types:" fields)
     (str "enum(" fields ")")))
 
 (defn merge-enums
-  "Merge any old enum values into the new version of the enum so that old data is preserved but the new enum types are added"
+  "Merge old enum values into the new version of the enum so that old types are preserved but the new enum types are added
+   Eg: existing: {:field gender, :type enum('boy','girl'), :null YES, :key , :default nil, :extra } and new: [:gender ENUM('male', 'female')]"
   [new existing]
-  ;existing: {:field gender, :type enum('boy','girl'), :null YES, :key , :default nil, :extra }
-  ;new: [:gender ENUM('boy', 'girl')]  
-  (reduce (fn [all n]
-            (let [existing-types-as-string (first (get-existing-enum-types (name (first n)) existing))
-                  merged-types (merge-enum-types (second n) existing-types-as-string)]
-              (info "Merged types: " merged-types)
-              (conj all (vector (first n) merged-types))))
-          {}
-          new))
+  (reduce
+   (fn [all n]
+     (let [existing-types-as-string (first (get-existing-enum-types (name (first n)) existing))
+           merged-types (merge-enum-types (second n) existing-types-as-string)]
+       (conj all (vector (first n) merged-types))))
+       {}
+       new))
+
+(defn add-enum-name
+  "Hack to add the enum's name to its spec in the front so the correct sql will be generated
+   Eg: [:gender ENUM('boy', 'girl')] converts to [:gender :gender ENUM('boy', 'girl')]"
+  [all current]
+  (conj all (into (vector (first current)) current)))
 
 (defn enum-specs-to-string
-  "Convert the existing enum specs into a sql query string"
+  "Convert the enum into a sql query string so the query can be run to update all the table's enums"
   [enum-specs existing-enums]
-  (info "Existing enums:" existing-enums)
-  (info "New enum defns:" enum-specs)
+  (debug "Existing enums:" existing-enums "New enum defns:" enum-specs)
   (let [merged-enums (merge-enums enum-specs existing-enums)
         specs (reduce add-enum-name (list) merged-enums)]
     (apply str
-           (map sql/as-identifier
-                (apply concat
-                       (interpose [", CHANGE "]
-                                  (map (partial interpose " ") specs)))))))
+      (map sql/as-identifier
+        (apply concat
+          (interpose [", CHANGE "]
+            (map (partial interpose " ") specs)))))))
 
 (defn update-table 
   "Adds non-existing columns to a table on the open database connection given a table name and
@@ -276,13 +272,12 @@
                      (sql/do-commands query)
                      )
 
-                   ; Redefine the existing enum columns
+              ; Redefine the existing enum columns
               (when (> (count enum-col-specs) 0)
-                     (info "enum cols specs: " enum-col-specs)
+                     (debug "enum cols specs: " enum-col-specs)
                      (info "Running enum queries:" enum-query)
-                     (sql/do-commands enum-query))
-                   
-                   ))
+                     (sql/do-commands enum-query))                   
+              ))
 	     
 	  ; Remove placeholder column
 	  (if (not exists)
