@@ -1,5 +1,6 @@
 (ns macaron.example
   (:require [macaron.core :as mc])
+  (:require [clojure.java.jdbc :as sql])
   (:require [clojure.tools.logging :as log]))
 
 (defn create-test-tables
@@ -8,13 +9,25 @@
 
 (def db {:classname "com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource"
          :subprotocol "mysql"
-         :subname (str "//" (System/getenv "DB_TEST_HOST") ":" (System/getenv "DB_TEST_PORT") "/" (System/getenv "DB_TEST_NAME") "?useUnicode=true&amp;characterEncoding=UTF8")
-         :user (System/getenv "DB_TEST_USERNAME")
-         :password (System/getenv "DB_TEST_PWD")
-         :min-connections 5
-         :max-connections 50
+         :subname "//localhost:3306/yc_test?useUnicode=true&amp;characterEncoding=UTF8"
+         :user "yc"
+         :password "yc"
+         :min-connections 0
+         :max-connections 5
          :inactivity-timeout 200
          :wait-timeout 10})
+
+(comment
+  "Need to get Foreman working for tests"
+  (def db {:classname "com.mysql.jdbc.jdbc2.optional.MysqlConnectionPoolDataSource"
+                  :subprotocol "mysql"
+                  :subname (str "//" (System/getenv "DB_TEST_HOST") ":" (System/getenv "DB_TEST_PORT") "/" (System/getenv "DB_TEST_NAME") "?useUnicode=true&amp;characterEncoding=UTF8")
+                  :user (System/getenv "DB_TEST_USERNAME")
+                  :password (System/getenv "DB_TEST_PWD")
+                  :min-connections 5
+                  :max-connections 50
+                  :inactivity-timeout 200
+                  :wait-timeout 10}))
 
 (defmacro with-db
   [& body]
@@ -47,7 +60,6 @@
              [description :full-varchar]
              [status :enum ["active" "inactive"]]
              [type1_id :link type1])            
-            (manytomany templateparameter)
             (queries
              :active "SELECT id, name, description FROM data1 where status = 'active'"))
 
@@ -55,7 +67,7 @@
 (mc/defentity data2
             (tablename "data2")
             (extends base-entity)
-            (fields
+            (fields             
              [name :full-varchar] 
              [description :full-varchar]
              [important_column :full-varchar])
@@ -65,3 +77,15 @@
              :important "SELECT important_column FROM data2 where id = :id"
              :joined "SELECT dd.data1_id FROM data2 d2 left join data2_data1 dd where dd.data2 = :d1id"))
 
+; sa uk usa
+; boy girl male female
+(mc/defentity data3
+            (tablename "data3")
+            (extends base-entity)
+            (fields             
+             [name :full-varchar]
+             [sometext :full-varchar]
+             [country :enum ["sa" "uk"] ]
+             [gender :enum ["male" "female"]])            
+            (queries
+             :all-summary "SELECT id, country, gender FROM data3"))
