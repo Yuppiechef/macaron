@@ -1,6 +1,8 @@
 (ns macaron.core
   (:use [clojure.tools.logging])
   (:require [clojure.java.jdbc :as sql])
+  (:require [clojure.string :as string])
+  (:require [clojure.set :as set])
   )
 
 (defmacro with-connection [db & body]
@@ -146,6 +148,91 @@
 
   )
 
+(defn check-enum-columns
+  "Checking if a column's type is an enum and include it in the returned collection"
+  [columns column]
+  (if (.startsWith (:type column) "enum")
+    (conj columns column)
+    columns))
+
+(defn get-enum-specs 
+  "Return the enum specs for matching enum fields"
+  [specs fields]
+  (reduce 
+   (fn [allspecs currentspec]
+     (if (not (nil? (some #{(name (first currentspec))} fields)))
+       (conj allspecs currentspec)
+       allspecs))
+    (list) 
+    specs))
+
+(defn add-enum-name
+  "Hack to add the enum's name to its spec in the front so the correct sql will be generated
+   Eg: [:gender ENUM('boy', 'girl')] converts to  [:gender :gender ENUM('boy', 'girl')]"
+  [all current]
+  (conj all (into (vector (first current)) current)))
+
+(defn get-existing-enum-types
+  "Find the current enum defn and return the current types"
+  [name enums]
+  (reduce
+   (fn [all current]
+     (if (= (:field current) name)
+             (conj all (:type current))
+             all))
+   (list)
+   enums))
+
+(defn merge-types
+  [types]
+  (reduce
+   (fn [all f]
+     (if-not (= (.trim f) ",")
+       (conj all (str "'" (.trim f) "'"))
+       all))
+   (hash-set)
+   types))
+
+(defn parse-types
+  "Meh function to strip out the types from the spec or column definition string. Skips first 6 letters and the last letter to remove enum( ) "
+  [enum]
+  (string/split (subs enum 6 (- (.length enum) 1)) #"\'"))
+
+(defn merge-enum-types
+  "Merged new and existing enum types together"
+  [new existing]
+  ;enum('boy','girl') and ENUM('male', 'female')
+  (let [types (set/union (merge-types (parse-types new)) (merge-types (parse-types existing)))
+        fields (apply str (concat (interpose "," types)))]
+    (info "Enum types:" fields)
+    (str "enum(" fields ")")))
+
+(defn merge-enums
+  "Merge any old enum values into the new version of the enum so that old data is preserved but the new enum types are added"
+  [new existing]
+  ;existing: {:field gender, :type enum('boy','girl'), :null YES, :key , :default nil, :extra }
+  ;new: [:gender ENUM('boy', 'girl')]  
+  (reduce (fn [all n]
+            (let [existing-types-as-string (first (get-existing-enum-types (name (first n)) existing))
+                  merged-types (merge-enum-types (second n) existing-types-as-string)]
+              (info "Merged types: " merged-types)
+              (conj all (vector (first n) merged-types))))
+          {}
+          new))
+
+(defn enum-specs-to-string
+  "Convert the existing enum specs into a sql query string"
+  [enum-specs existing-enums]
+  (info "Existing enums:" existing-enums)
+  (info "New enum defns:" enum-specs)
+  (let [merged-enums (merge-enums enum-specs existing-enums)
+        specs (reduce add-enum-name (list) merged-enums)]
+    (apply str
+           (map sql/as-identifier
+                (apply concat
+                       (interpose [", CHANGE "]
+                                  (map (partial interpose " ") specs)))))))
+
 (defn update-table 
   "Adds non-existing columns to a table on the open database connection given a table name and
   specs. This can be used instead of create-table Each spec is either a column spec: a vector containing a column
@@ -163,23 +250,39 @@
 	    (sql/do-commands (str "CREATE TABLE " table-name " (__placeholder__ int) ENGINE=innodb, CHARACTER SET=utf8, COLLATE=utf8_general_ci" table-spec-str)))
 	  
 	  (sql/with-query-results rs [(str "SHOW COLUMNS FROM " table-name)]
-	     (let [existing-columns (map #(:field %) rs)
-	           remaining-cols (filter-existing specs existing-columns)
-			       specs-to-string (fn [specs]
-			                          (apply str
-			                                 (map sql/as-identifier
-			                                      (apply concat
-			                                             (interpose [", ADD COLUMN "]
-			                                                        (map (partial interpose " ") 
-	                                                               remaining-cols))))))
+            (let [existing-columns (map #(:field %) rs)
+	          remaining-cols (filter-existing specs existing-columns)
+		  specs-to-string (fn [specs]
+			            (apply str
+			              (map sql/as-identifier
+			                (apply concat
+			                  (interpose [", ADD COLUMN "]
+			                    (map (partial interpose " ") remaining-cols))))))
 	           query (format "ALTER TABLE %s ADD COLUMN %s %s"
 		            (sql/as-identifier table-name)
 		            (specs-to-string col-specs)
-		            table-spec-str)]
-	       (when (> (count remaining-cols) 0)
-                 (info "Running queries:" query)
-	         (sql/do-commands query)
-	         )))
+		            table-spec-str)
+                  existing-enums (reduce check-enum-columns (list) rs)
+                  existing-enum-names (map #(:field %) existing-enums)
+                  enum-col-specs (get-enum-specs col-specs existing-enum-names)
+                  enum-query (format "ALTER TABLE %s CHANGE %s %s"
+		            (sql/as-identifier table-name)
+		            (enum-specs-to-string enum-col-specs existing-enums)
+		            table-spec-str)
+                  ]
+              (when (> (count remaining-cols) 0)
+                     (info "Remaining column" remaining-cols)
+                     (info "Running queries:" query)
+                     (sql/do-commands query)
+                     )
+
+                   ; Redefine the existing enum columns
+              (when (> (count enum-col-specs) 0)
+                     (info "enum cols specs: " enum-col-specs)
+                     (info "Running enum queries:" enum-query)
+                     (sql/do-commands enum-query))
+                   
+                   ))
 	     
 	  ; Remove placeholder column
 	  (if (not exists)
