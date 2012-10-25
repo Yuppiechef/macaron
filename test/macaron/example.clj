@@ -35,8 +35,7 @@
                   :wait-timeout 10}))
 
 ; Simple macro to execute your functions within a transaction from the database
-; Try and let the higher up code in your application call this macro
-; to create the transaction at the correct/upper level and not
+; Try and let the higher up code in your application call this macro to create the transaction at the correct/upper level and not
 ; multiple transactions that will not see each other's data, etc
 (defmacro with-db
   [& body]
@@ -44,6 +43,8 @@
 
 ; The base data enity that all your other data entities will extends.
 ; This defines all the common columns for your tables
+; Note that if your tablename is the same as your entity name, youdon't need to specify (tablename). 
+; It's just if you have mysql being difficult with the name (like 'user'), you can specify another name ('users')
 (mc/defentity-template base-entity
            (fields
             [id :auto-index]
