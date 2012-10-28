@@ -335,13 +335,58 @@
   [fieldnames valuemap]
   (select-keys valuemap fieldnames))
 
+(defn get-named-query-params
+  "Convert the where clause from named query's sql into function parameters"
+  [sql]
+  (let [words (clojure.string/split sql #"\s")]
+    (reduce (fn [all current] (if (.startsWith current ":") (conj all (name current)) all))
+             (list)
+             words)))
+
+(defmacro deftest1
+  []
+  (let [fn-name "test1"
+        params (list "one" "two")]
+    `(do (
+          (defn ~(symbol fn-name)                
+            ~(str "A function to perform a test " fn-name)
+            ;[~@params]
+            ;[{:keys [~@params] :as valuemap#}]
+            [~(symbol "one")]
+            (println "Here are the parameters:" ~@params)
+            (println "Hi"))))))
+
+(defmacro defnamedqueries
+  "Converts an entity's named queries to functions"
+  [nm entdef fields opts]
+  (let [entname (name nm)
+        queries (:queries entdef)]
+    (doseq [query queries]
+      (let [name (name (first query))
+            query-name (first query)
+            named-query (str "list-" entname "-query")
+            fn-name (str "query-" entname "-" name)
+            params (get-named-query-params (second query))]
+        (info "Creating named query function:" fn-name "with parameters:" params)
+        (info "and named-query:" named-query "query-name:" query-name)
+        `(do (
+              (defn ~(symbol fn-name)                
+                ~(str "A function to call a named query " fn-name)
+                [~@params]
+                ;(~named-query ~query-name )
+                )      
+                ))
+        ))
+    ))
+
 (defmacro defentityrecord
   [nm entdef fields opts]
   (let [entname (name nm)
         fieldnames (map #(symbol (first %)) fields)
         fieldkeys (map #(keyword (first %)) fields)
         tablename (:tablename entdef)
-        mtmlinks (:manytomany entdef)]
+        mtmlinks (:manytomany entdef)
+        queries (:queries entdef)]
     ; Install many-to-many link entity first...
     
     `(do
@@ -396,6 +441,7 @@
          [querykey# param-map#]
          (with-namequery-result rs# (keyword ~entname) querykey# param-map#
            (doall rs#)))
+
        ))
   )
 
@@ -465,6 +511,7 @@
     `(do
        (entity-register! ~(name nm) ~entitydef)
        (defentityrecord ~nm ~entitydef [~@fields] [~@recopts])
+       (defnamedqueries ~nm ~entitydef [~@fields] [~@recopts])
        )))
 
 (def coltypes
