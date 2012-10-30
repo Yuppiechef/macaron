@@ -4,7 +4,7 @@ A way to declaratively describe your database model and get going without much f
 
 ## Usage
 
-FIXME: write
+Simple sample use of Macaron is in test/macaron/example.clj
 
 ## License
 
