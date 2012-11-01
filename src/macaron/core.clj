@@ -61,6 +61,12 @@
                           (into {} rs))
   )
 
+(defn delete-by
+  "Delete an entity using the specified column provided"
+  [col table value]
+  (warn "Deleting data:" table col value)
+  (sql/delete-rows table [(format "%s = ?" (sql/as-identifier col)) value]))
+
 (comment
   "This behaviour is strongly discouraged, so it's removed for now. You should almost exclusively use named queries even for the simplest queries (outside of 'get-list')"
   (defn find-list

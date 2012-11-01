@@ -3,6 +3,7 @@
   (:require [macaron.core :as mc])
   (:require [clojure.java.jdbc :as sql])
   (:require [clojure.tools.logging :as log])
+  (:require [clojure.pprint :as pretty])
   (:import (java.util Date)
            (java.sql SQLException)))
 
@@ -111,25 +112,36 @@
 ; Macaron provides some useful functions for each of your entities
 ; that are generated into your current namespace by macros
 ; Again calls to these functions need to be within a (with-db (...))
-(defn get-type1-summaries
+; The named queries per entity as a function called list-<entityname>-<queryname>
+(defn get-type1-summary
   "Loads all the type1 rows but specific columns only using a named query"
-  []
-  (list-type1-query :summary {}))
+  [id]
+  (query-type1-summary id))
 
-(defn get-type1
+(defn get-all-types1
   "Loads all the type1 rows"
   []
-  (list-type1-query :all {}))
+  (query-type1-all))
 
-(defn save-type
+(defn save-single-type1
   "Saves a new type, eg: (with-db(save-type name))"
   [name]
   (save-type1 {:dateadded (Date.) :name name}))
 
-(defn update-type
+(defn update-type1
   "Updates an existing type"
   [id name]
   (save-type1 {:id 1 :name name}))
+
+(defn delete-type1-by-name
+  "Sample delete function"
+  [name]
+  (mc/delete-by "name" "type1" name))
+
+(defn delete-type1-by-id
+  "Another sample delete function"
+  [id]
+  (mc/delete-by "id" "type1" id))
 
 (defn save-1st-data
   "Save a data1 row Note: the column name of the type1_id and not type1-id which is the name in the entity"
@@ -151,12 +163,16 @@
   [data1-id data2-id]
   (save-data2-data1 {:data1_idNot data1-id :data2_id data2-id}))
 
-(defn all-named-queries
+(defn testing-stuff
   ""
   []
-  ;(query-type1-all)
-  (query-type1-summary 2)
+  (save-single-type1 "One")
+  (save-single-type1 "Two")
+  (pretty/pprint (str "Deleted ? " (first (delete-type1-by-name "One"))))
+  (pretty/pprint (str "Deleted ? " (first (delete-type1-by-name "Two"))))
+  (save-single-type1 "Three")
+  (def types1 (get-all-types1))
+  (pretty/pprint types1)
+  (pretty/pprint (str "Deleted first type ? " (first (delete-type1-by-id (:id (first types1))))))
+  (get-all-types1)
   )
-
-
-
