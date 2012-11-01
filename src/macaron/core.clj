@@ -335,49 +335,40 @@
   [fieldnames valuemap]
   (select-keys valuemap fieldnames))
 
-(defn get-named-query-params
-  "Convert the where clause from named query's sql into function parameters"
-  [sql]
-  (let [words (clojure.string/split sql #"\s")]
-    (reduce (fn [all current] (if (.startsWith current ":") (conj all (name current)) all))
-             (list)
-             words)))
+(def keyword-match #":([A-Za-z0-9+*_-]+)")
 
-(defmacro deftest1
-  []
-  (let [fn-name "test1"
-        params (list "one" "two")]
-    `(do (
-          (defn ~(symbol fn-name)                
-            ~(str "A function to perform a test " fn-name)
-            ;[~@params]
-            ;[{:keys [~@params] :as valuemap#}]
-            [~(symbol "one")]
-            (println "Here are the parameters:" ~@params)
-            (println "Hi"))))))
+(defn get-query-paramnames
+  "Gets the parameters of a query as names, ordered by match"
+  [qry]
+  (map #(second %) (re-seq keyword-match qry)))
+
+(defn get-query-paramkeys
+  "Gets the parameters of a query as keys, ordered by match"
+  [qry]
+  (map #(keyword %) (get-query-paramnames qry)))
+
+(defn get-fndef
+  "Generates a function for an entity's named-query"
+  [entname qry]
+  (let [query (eval qry)
+        name (name (first query))
+        query-name (first query)
+        named-query (symbol (str "list-" entname "-query"))
+        fn-name (str "query-" entname "-" name)
+        params (get-query-paramnames (second query))]
+    `(defn ~(symbol fn-name)
+       ~(str "A function to call a named query " fn-name)
+       [~@(map symbol params)]
+       (~named-query ~(keyword query-name) ~(into {} (map (fn [i] {(keyword i) (symbol i)}) params))))))
 
 (defmacro defnamedqueries
   "Converts an entity's named queries to functions"
-  [nm entdef fields opts]
-  (let [entname (name nm)
-        queries (:queries entdef)]
-    (doseq [query queries]
-      (let [name (name (first query))
-            query-name (first query)
-            named-query (str "list-" entname "-query")
-            fn-name (str "query-" entname "-" name)
-            params (get-named-query-params (second query))]
-        (info "Creating named query function:" fn-name "with parameters:" params)
-        (info "and named-query:" named-query "query-name:" query-name)
-        `(do (
-              (defn ~(symbol fn-name)                
-                ~(str "A function to call a named query " fn-name)
-                [~@params]
-                ;(~named-query ~query-name )
-                )      
-                ))
-        ))
-    ))
+  [entname queries]
+  (let [fndefs (map (partial get-fndef entname) queries)]
+    `(do
+       ~@fndefs
+       )))
+
 
 (defmacro defentityrecord
   [nm entdef fields opts]
@@ -511,7 +502,7 @@
     `(do
        (entity-register! ~(name nm) ~entitydef)
        (defentityrecord ~nm ~entitydef [~@fields] [~@recopts])
-       (defnamedqueries ~nm ~entitydef [~@fields] [~@recopts])
+       (defnamedqueries ~(name nm) ~(:queries entitydef))
        )))
 
 (def coltypes
@@ -681,13 +672,6 @@
   []
   (batch-update-entities- (filter #(-> (second %) :tablename) @entitydefs))
 )
-
-(def keyword-match #":([A-Za-z0-9+*_-]+)")
-
-(defn get-query-paramkeys
-  "Gets the parameters of a query as keys, ordered by match"
-  [qry]
-  (map #(keyword (second %)) (re-seq keyword-match qry)))
 
 (defn param-value
   "Get the value of a key on param map, or throw a runtime exception if not found. Fail-fast."

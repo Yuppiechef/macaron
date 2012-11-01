@@ -68,7 +68,7 @@
              [name :full-varchar])
             (queries
              :all "SELECT * FROM type1"
-             :summary "SELECT id, name FROM type1"))
+             :summary "SELECT id, name FROM type1 where id = :id"))
 
 ; A simple data table that links to the type1 table
 (mc/defentity data1
@@ -93,7 +93,7 @@
             (manytomany data1)
             (queries
              :all-summary "SELECT id, name FROM data2"
-             :important "SELECT important_column FROM data2 where id = :id or name = :name"
+             :important (str "SELECT important_column FROM data2 where id = :id or name = :name")
              :joined "SELECT dd.data1_id FROM data2 d2 left join data2_data1 dd where dd.data2 = :d1id"))
 
 ; Another simple table with multiple enums
@@ -154,18 +154,9 @@
 (defn all-named-queries
   ""
   []
-  (find-data1-by)
-  (mc/deftest1)
-  (test1 "Bob")
-                                        ;(query-type1-all)
+  ;(query-type1-all)
+  (query-type1-summary 2)
   )
-
-
-
-
-
-
-
 
 
 
