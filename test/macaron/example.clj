@@ -3,7 +3,8 @@
   (:require [macaron.core :as mc])
   (:require [clojure.java.jdbc :as sql])
   (:require [clojure.tools.logging :as log])
-  (:import (java.util Date)))
+  (:import (java.util Date)
+           (java.sql SQLException)))
 
 (defn check-test-tables
   "Run this function to create/update your tables. Load this namespace and wrap this call as: (with-db (check-test-tables))"
@@ -39,7 +40,13 @@
 ; multiple transactions that will not see each other's data, etc
 (defmacro with-db
   [& body]
-  `(sql/with-connection db (sql/transaction ~@body)))
+  `(try
+     ;(log/info "Executing function: " ~body)
+     (sql/with-connection db (sql/transaction ~@body))
+     ;(catch SQLException e#
+       ;(log/error "Error executing query:" e#)
+       ;(throw e#)
+     ))
 
 ; The base data enity that all your other data entities will extends.
 ; This defines all the common columns for your tables
@@ -61,7 +68,7 @@
              [name :full-varchar])
             (queries
              :all "SELECT * FROM type1"
-             :summary "SELECT id, name FROM type1"))
+             :summary "SELECT id, name FROM type1 where id = :id"))
 
 ; A simple data table that links to the type1 table
 (mc/defentity data1
@@ -73,7 +80,7 @@
              [status :enum ["active" "inactive"]]
              [type1_id :link type1])            
             (queries
-             :active "SELECT id, name, description FROM data1 where status = 'active'"))
+             :status "SELECT id, name, description FROM data1 where status = :status"))
 
 ; Another data table that has a many-to-many link to the data1 table
 (mc/defentity data2
@@ -86,7 +93,7 @@
             (manytomany data1)
             (queries
              :all-summary "SELECT id, name FROM data2"
-             :important "SELECT important_column FROM data2 where id = :id"
+             :important (str "SELECT important_column FROM data2 where id = :id or name = :name")
              :joined "SELECT dd.data1_id FROM data2 d2 left join data2_data1 dd where dd.data2 = :d1id"))
 
 ; Another simple table with multiple enums
@@ -138,5 +145,18 @@
   "Link up a data1 and a data2 instance"
   [data1-id data2-id]
   (save-data2-data1 {:data1_id data1-id :data2_id data2-id}))
+
+(defn generate-sqlexception
+  "Incorrect column name generates a SQLException for testing purposes"
+  [data1-id data2-id]
+  (save-data2-data1 {:data1_idNot data1-id :data2_id data2-id}))
+
+(defn all-named-queries
+  ""
+  []
+  ;(query-type1-all)
+  (query-type1-summary 2)
+  )
+
 
 

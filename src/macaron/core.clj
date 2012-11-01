@@ -335,13 +335,49 @@
   [fieldnames valuemap]
   (select-keys valuemap fieldnames))
 
+(def keyword-match #":([A-Za-z0-9+*_-]+)")
+
+(defn get-query-paramnames
+  "Gets the parameters of a query as names, ordered by match"
+  [qry]
+  (map #(second %) (re-seq keyword-match qry)))
+
+(defn get-query-paramkeys
+  "Gets the parameters of a query as keys, ordered by match"
+  [qry]
+  (map #(keyword %) (get-query-paramnames qry)))
+
+(defn get-fndef
+  "Generates a function for an entity's named-query"
+  [entname qry]
+  (let [query (eval qry)
+        name (name (first query))
+        query-name (first query)
+        named-query (symbol (str "list-" entname "-query"))
+        fn-name (str "query-" entname "-" name)
+        params (get-query-paramnames (second query))]
+    `(defn ~(symbol fn-name)
+       ~(str "A function to call a named query " fn-name)
+       [~@(map symbol params)]
+       (~named-query ~(keyword query-name) ~(into {} (map (fn [i] {(keyword i) (symbol i)}) params))))))
+
+(defmacro defnamedqueries
+  "Converts an entity's named queries to functions"
+  [entname queries]
+  (let [fndefs (map (partial get-fndef entname) queries)]
+    `(do
+       ~@fndefs
+       )))
+
+
 (defmacro defentityrecord
   [nm entdef fields opts]
   (let [entname (name nm)
         fieldnames (map #(symbol (first %)) fields)
         fieldkeys (map #(keyword (first %)) fields)
         tablename (:tablename entdef)
-        mtmlinks (:manytomany entdef)]
+        mtmlinks (:manytomany entdef)
+        queries (:queries entdef)]
     ; Install many-to-many link entity first...
     
     `(do
@@ -396,6 +432,7 @@
          [querykey# param-map#]
          (with-namequery-result rs# (keyword ~entname) querykey# param-map#
            (doall rs#)))
+
        ))
   )
 
@@ -465,6 +502,7 @@
     `(do
        (entity-register! ~(name nm) ~entitydef)
        (defentityrecord ~nm ~entitydef [~@fields] [~@recopts])
+       (defnamedqueries ~(name nm) ~(:queries entitydef))
        )))
 
 (def coltypes
@@ -634,13 +672,6 @@
   []
   (batch-update-entities- (filter #(-> (second %) :tablename) @entitydefs))
 )
-
-(def keyword-match #":([A-Za-z0-9+*_-]+)")
-
-(defn get-query-paramkeys
-  "Gets the parameters of a query as keys, ordered by match"
-  [qry]
-  (map #(keyword (second %)) (re-seq keyword-match qry)))
 
 (defn param-value
   "Get the value of a key on param map, or throw a runtime exception if not found. Fail-fast."
