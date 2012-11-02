@@ -136,12 +136,12 @@
 (defn delete-type1-by-name
   "Sample delete function"
   [name]
-  (mc/delete-by "name" "type1" name))
+  (delete-type1-by "name" name))
 
 (defn delete-type1-by-id
   "Another sample delete function"
   [id]
-  (mc/delete-by "id" "type1" id))
+  (delete-type1-by "id" id))
 
 (defn save-1st-data
   "Save a data1 row Note: the column name of the type1_id and not type1-id which is the name in the entity"
