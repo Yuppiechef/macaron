@@ -64,7 +64,7 @@
 (defn delete-by
   "Delete an entity using the specified column provided"
   [col table value]
-  (warn "Deleting data:" table col value)
+  (debug "Deleting data in table: " table " column: " col " value: " value)
   (sql/delete-rows table [(format "%s = ?" (sql/as-identifier col)) value]))
 
 (comment
