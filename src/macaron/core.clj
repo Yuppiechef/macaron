@@ -406,6 +406,11 @@
          (let [result# (find-by fld# ~tablename val#)]
            (if (empty? result#) nil
              (~(symbol (str  "new-" entname)) result#))))
+
+       (defn ~(symbol (str "delete-" entname "-by"))
+         ~(str "Delete a single instance " entname " by a specified field")
+         [field# value#]
+         (delete-by field# ~tablename value#))
        
        (defn ~(symbol (str "find-or-create-" entname ))
          ~(str "Find a single instance " entname " by a specified field")
