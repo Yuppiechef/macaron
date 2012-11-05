@@ -104,8 +104,8 @@
             (fields             
              [name :full-varchar]
              [sometext :full-varchar]
-             [country :enum ["sa" "uk"] ]
-             [gender :enum ["male" "female"]])            
+             [country :enum ["sa" "usa", "ru"] ]
+             [gender :enum ["male" "female" "unknown"]])            
             (queries
              :all-summary "SELECT id, country, gender FROM data3"))
 
