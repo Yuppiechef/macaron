@@ -201,9 +201,13 @@
 (defn merge-enum-types
   "Merged new and existing enum types together, eg: enum('boy','girl') and ENUM('male', 'female') returns enum('boy', 'girl', 'male', 'female')"
   [new existing]
-  (let [types (set/union (merge-types (parse-types new)) (merge-types (parse-types existing)))
+  (let [existing-enums (merge-types (parse-types existing))
+        new-enums (merge-types (parse-types new))
+        missing (set/difference new-enums existing-enums)        
+        types (set/union new-enums existing-enums)
         fields (apply str (concat (interpose "," types)))]
-    (str "enum(" fields ")")))
+    (if (> (count missing) 0)      
+      (str "enum(" fields ")"))))
 
 (defn merge-enums
   "Merge old enum values into the new version of the enum so that old types are preserved but the new enum types are added
@@ -213,7 +217,9 @@
    (fn [all n]
      (let [existing-types-as-string (first (get-existing-enum-types (name (first n)) existing))
            merged-types (merge-enum-types (second n) existing-types-as-string)]
-       (conj all (vector (first n) merged-types))))
+       (if-not (nil? merged-types)
+         (conj all (vector (first n) merged-types))
+         all)))
        {}
        new))
 
@@ -229,11 +235,13 @@
   (debug "Existing enums:" existing-enums "New enum defns:" enum-specs)
   (let [merged-enums (merge-enums enum-specs existing-enums)
         specs (reduce add-enum-name (list) merged-enums)]
-    (apply str
-      (map sql/as-identifier
-        (apply concat
-          (interpose [", CHANGE "]
-            (map (partial interpose " ") specs)))))))
+    (if (> (count merged-enums) 0)
+      (apply str
+             (map sql/as-identifier
+                  (apply concat
+                         (interpose [", CHANGE "]
+                                    (map (partial interpose " ") specs)))))
+      nil)))
 
 (defn update-table 
   "Adds non-existing columns to a table on the open database connection given a table name and
@@ -267,9 +275,10 @@
                   existing-enums (reduce check-enum-columns (list) rs)
                   existing-enum-names (map #(:field %) existing-enums)
                   enum-col-specs (get-enum-specs col-specs existing-enum-names)
+                  enum-sql (enum-specs-to-string enum-col-specs existing-enums)
                   enum-query (format "ALTER TABLE %s CHANGE %s %s"
 		            (sql/as-identifier table-name)
-		            (enum-specs-to-string enum-col-specs existing-enums)
+		            enum-sql
 		            table-spec-str)
                   ]
               (when (> (count remaining-cols) 0)
@@ -279,8 +288,7 @@
                      )
 
               ; Redefine the existing enum columns
-              (when (> (count enum-col-specs) 0)
-                     (debug "enum cols specs: " enum-col-specs)
+              (when (not (nil? enum-sql))
                      (info "Running enum queries:" enum-query)
                      (sql/do-commands enum-query))                   
               ))
