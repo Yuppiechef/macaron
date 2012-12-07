@@ -288,7 +288,7 @@
 
               ; Redefine the existing enum columns
               (when (not (nil? enum-sql))
-                     (info "Running enum queries:" enum-query)
+                     (info "Running enum update queries:" enum-query)
                      (sql/do-commands enum-query))                   
               ))
 	     
@@ -649,19 +649,19 @@
      :entity entitydef
      :table
      #(do
-        (info "Updating" tablename)
+        (debug "Updating" tablename)
         (apply update-table (colname tablename) fielddesc))
      
      ;; Apply indices
      :indices
      #(doseq [index (find-indices entitydef)]
-       (info "Adding index:" index)
+       (debug "Adding index:" index)
        (apply add-index tablename index))
 
      ;; Apply foreign keys
      :fk
      #(doseq [fk (find-foreignkeys entitydef)]
-       (info "Adding FK:" fk)
+       (debug "Adding FK:" fk)
        (apply add-foreignkey tablename fk))
 
      ;; Post create function if applicable
@@ -669,21 +669,23 @@
      #(if (not exists)
         (if-let [post-fns (:post-create-fn entitydef)]
           (doseq [post-fn post-fns]
-            (info "Running post-create-fn:" post-fn)
+            (debug "Running post-create-fn:" post-fn)
             (eval `(~post-fn (@entitydefs ~(keyword (str enname)))))
             )))
      }))
 
 (defn batch-update-entities- [entitylist]
+  (info "Updating entities:" (count entitylist))
   (let [tables (doall (for [def entitylist]
                         (do
-                          (info "Loading table: " (first def))
+                          (debug "Loading table: " (first def))
                           (update-entity-table (second def)))))]
     (doseq [op [:table :indices :fk :post-create]
             t tables]
-      (info "Handling" op ":" (-> t :entity :name))
+      (debug "Handling" op ":" (-> t :entity :name))
       ((op t))
-      )))
+      ))
+  (info "Completed entities update"))
 
 (defn update-entity-tables!
   "Goes through the entitydefs and update all the tables"
