@@ -41,14 +41,13 @@
    )
   )
 
-(defn save-entity [table record]
-  (let [entity (into {} (filter #(-> (second %) nil? not) record))]
-    (if (and (contains? entity :id) (:id entity))
-      (if (contains? entity :version)
-        (update-entity-with-version table entity)
-        (do (sql/update-values table ["id=?" (:id entity)] entity) entity))
-      (assoc entity :id (:generated_key (sql/insert-record table entity)))
-      )))
+(defn save-entity [table entity]
+  (if (and (contains? entity :id) (:id entity))
+    (if (contains? entity :version)
+      (update-entity-with-version table entity)
+      (do (sql/update-values table ["id=?" (:id entity)] entity) entity))
+    (assoc entity :id (:generated_key (sql/insert-record table entity)))
+    ))
 
 
 (defn save-entities [table entities]
