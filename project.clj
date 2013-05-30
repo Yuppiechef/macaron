@@ -1,4 +1,4 @@
-(defproject com.yuppiechef/macaron "1.1.0-SNAPSHOT"
+(defproject com.yuppiechef/macaron "2.0.0"
   :description "A declarative entity abstraction library for clojure."
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [org.clojure/tools.logging "0.2.3"]
